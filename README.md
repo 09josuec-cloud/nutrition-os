@@ -41,6 +41,9 @@ Live app: https://nutrition-os-gray.vercel.app
 ## Security
 
 * In production the browser never sees the Anthropic API key. Requests go through `/api/chat`, which adds the key on the server.
+* Both endpoints require a passcode (`APP_PASSCODE`). The app asks for it once and saves it on the device. Requests without it are refused, and if the passcode is not configured the endpoints refuse everything.
+* `/api/chat` only accepts the two models the app uses and caps output at 1,500 tokens, so it cannot be used for other or expensive requests.
+* `/api/store` only accepts the app's own storage keys.
 * The Supabase service key is only used inside `/api/store` on the server.
 * All keys are set as environment variables in Vercel, not in the code. `.env.example` has placeholder values only.
 
@@ -57,6 +60,7 @@ To deploy, import the repo into Vercel and set these environment variables:
 | Variable | Required | Purpose |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Yes | Used by `/api/chat` |
+| `APP_PASSCODE` | Yes | Passcode the app must send to use `/api/chat` and `/api/store` |
 | `SUPABASE_URL` | No | Turns on cloud sync |
 | `SUPABASE_SERVICE_KEY` | No | Server side key for `/api/store` |
 
@@ -80,6 +84,7 @@ Editable in Settings.
 ```
 nutrition-os/
 ├── api/
+│   ├── _auth.js    shared passcode check (not a route)
 │   ├── chat.js     serverless proxy to the Anthropic API
 │   └── store.js    serverless Supabase sync
 ├── src/

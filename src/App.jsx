@@ -6,6 +6,22 @@ const API_ENDPOINT = import.meta.env.DEV
   ? "https://api.anthropic.com/v1/messages"
   : "/api/chat";
 
+// Passcode for the serverless endpoints (production only). Asked once, saved on this device.
+const PASSCODE_KEY = "nutrition-passcode";
+let passcodePrompted = false;
+const getPasscode = () => {
+  let p = null;
+  try { p = localStorage.getItem(PASSCODE_KEY); } catch {}
+  if (!p && !passcodePrompted && typeof window !== "undefined") {
+    passcodePrompted = true;
+    p = window.prompt("Enter your Nutrition OS passcode") || "";
+    if (p) { try { localStorage.setItem(PASSCODE_KEY, p); } catch {} }
+  }
+  return p || "";
+};
+const clearPasscode = () => { try { localStorage.removeItem(PASSCODE_KEY); } catch {} passcodePrompted = false; };
+const authHeaders = () => ({ "x-app-passcode": getPasscode() });
+
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 const C = {
   bg0: "#07090e",   // deepest
@@ -326,12 +342,13 @@ const store = {
   set: (key, val) => {
     try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
     if (CLOUD_KEYS.has(key) || key.startsWith("day-") || key.startsWith("chat-")) {
-      fetch("/api/store", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ k: key, data: val }) }).catch(() => {});
+      if (!import.meta.env.DEV) fetch("/api/store", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ k: key, data: val }) }).catch(() => {});
     }
   },
 };
 const cloudGet = async (key) => {
-  try { const r = await fetch(`/api/store?k=${encodeURIComponent(key)}`); return r.ok ? r.json() : null; } catch { return null; }
+  if (import.meta.env.DEV) return null;
+  try { const r = await fetch(`/api/store?k=${encodeURIComponent(key)}`, { headers: authHeaders() }); return r.ok ? r.json() : null; } catch { return null; }
 };
 
 const bucketFromHour = (h) => {
@@ -747,11 +764,12 @@ export default function App() {
         method: "POST",
         headers: import.meta.env.DEV
           ? { "Content-Type": "application/json", "x-api-key": API_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }
-          : { "Content-Type": "application/json" },
+          : { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ model: selectedModel, max_tokens: 1000, system: buildSystemPrompt({ targets, goal, coachMemory }), messages: [...apiHistory, { role: "user", content: currentContent }] }),
       });
+      if (res.status === 401) clearPasscode();
       const data = await res.json();
-      const rawText = data.content?.[0]?.text || "Something went wrong.";
+      const rawText = data.content?.[0]?.text || (res.status === 401 ? "Wrong or missing passcode. Send your message again and enter the passcode when asked." : "Something went wrong.");
       const displayText = cleanText(rawText);
       const { updated, macroDelta, liquidDelta, weight, mealLogged, insight, mealRemoved } = parseUpdates(rawText, currentDay);
 
@@ -1529,7 +1547,7 @@ export default function App() {
               const keys = Object.keys(localStorage).filter(k => k.startsWith("day-") || k.startsWith("chat-") || k.startsWith("nudge-") || ["nutrition-history","nutrition-weights","nutrition-coach-memory"].includes(k));
               keys.forEach(k => localStorage.removeItem(k));
               setHistory({}); setWeights({}); setDayData(null); setMessages([]); setCoachMemory(""); setProactiveSent({});
-              if (!import.meta.env.DEV) fetch("/api/store", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pattern: "%" }) }).catch(() => {});
+              if (!import.meta.env.DEV) fetch("/api/store", { method: "DELETE", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ pattern: "%" }) }).catch(() => {});
               pushToast("All data wiped — fresh start"); setSettingsOpen(false);
             }}} style={{ padding: "9px 16px", background: "transparent", border: `1px solid ${C.err}`, borderRadius: "9px", color: C.err, cursor: "pointer", fontSize: "13px" }}>Wipe all data</button>
           </div>
