@@ -1,130 +1,92 @@
 # Nutrition OS
 
-Personal nutrition tracker with an AI coach. Single user (Josue). Data lives in localStorage, with optional cloud sync through Supabase.
+A personal nutrition tracker with an AI coach. I built it to replace logging meals by hand and to get feedback on my eating in plain English instead of digging through numbers.
 
-Live: https://nutrition-os-gray.vercel.app
+This is a personal learning project for a single user, not a commercial product.
 
-## Stack
+Live app: https://nutrition-os-gray.vercel.app
 
-- React 18 + Vite
-- Recharts for trend graphs
-- Anthropic API: Sonnet 4 for meals and photos, Haiku 4.5 for quick liquid logs
-- Vercel serverless functions (`/api/chat` proxies Claude so the key stays on the server, `/api/store` syncs data to Supabase)
-- Supabase (PostgreSQL), optional
-- Web Speech API for voice input
+## What it automates
+
+**Meal logging from plain text, voice, or a photo.** I describe a meal, say it out loud, or snap a picture of the plate. Claude estimates the calories, protein, carbs, fat, and fiber and logs it to the right meal slot. Quick logs like water or coffee go to a smaller, cheaper model (Haiku) to keep costs down.
+
+**Structured updates from AI replies.** Claude ends each reply with a small JSON block (meal, liquid, weight, or coach insight). The app reads that block, updates the day's totals, saves it, and hides it from the chat, so the AI's answer turns directly into tracked data.
+
+**Proactive nudges.** At set times the app checks progress and nudges me once per day if something is behind, for example low protein by 1pm or low fiber by 6pm.
+
+**Coach memory.** At the end of each day the AI saves patterns it noticed, and uses them in later days to give more personal advice.
+
+## Features
+
+* Macro bars for calories, protein, carbs, fat, and fiber, with a hard cap warning on carbs
+* Hydration, coffee, and supplement (creatine) tracking
+* Charts for calories, macros, fiber, water, and weight over 7, 14, or 30 days
+* Protein and creatine streaks, weekly summary, and history search
+* Editable targets and goal phase (cut, maintain, bulk)
+* JSON export and import for backups
+
+## How it's built and hosted
+
+| Piece | Tool |
+|---|---|
+| App | React 18 and Vite |
+| Charts | Recharts |
+| AI | Anthropic API (Claude Sonnet for meals and photos, Haiku for quick logs) |
+| Hosting and deploys | Vercel |
+| API proxy | Vercel serverless function (`api/chat.js`) so the API key stays on the server |
+| Cloud sync (optional) | Supabase (PostgreSQL) through `api/store.js` |
+| Local storage | Browser localStorage, so the app still works without the database |
+| Voice input | Web Speech API |
+
+## Security
+
+* In production the browser never sees the Anthropic API key. Requests go through `/api/chat`, which adds the key on the server.
+* The Supabase service key is only used inside `/api/store` on the server.
+* All keys are set as environment variables in Vercel, not in the code. `.env.example` has placeholder values only.
 
 ## Setup
 
 ```bash
 npm install
-cp .env.example .env.local
-# edit .env.local and paste your Anthropic API key
-npm run dev
+cp .env.example .env.local   # add your Anthropic API key
+npm run dev                  # runs at http://localhost:5173
 ```
 
-The app runs at `http://localhost:5173`.
-
-## Deploy to Vercel
-
-First time:
-```bash
-npx vercel
-```
-Walk through the prompts to link/create a project. Then for production:
-```bash
-npx vercel --prod
-```
-
-If you've already linked the project (have a `.vercel/` folder) or use Git integration:
-```bash
-git add -A && git commit -m "your message" && git push
-```
-
-**Important:** in Vercel, go to Project, Settings, Environment Variables and set:
+To deploy, import the repo into Vercel and set these environment variables:
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Yes | Used by `/api/chat` on the server |
-| `SUPABASE_URL` | No | Enables cloud sync via `/api/store` |
-| `SUPABASE_SERVICE_KEY` | No | Server side Supabase key for `/api/store` |
+| `ANTHROPIC_API_KEY` | Yes | Used by `/api/chat` |
+| `SUPABASE_URL` | No | Turns on cloud sync |
+| `SUPABASE_SERVICE_KEY` | No | Server side key for `/api/store` |
 
-In local dev (`npm run dev`) the app calls the Anthropic API directly with `VITE_ANTHROPIC_API_KEY` from `.env.local`. In production it goes through `/api/chat`, so the key is never shipped to the browser. If Supabase is not configured, `/api/store` quietly does nothing and the app runs on localStorage alone.
+If Supabase is not set up, `/api/store` does nothing and the app runs on localStorage alone.
 
-## Daily Targets (defaults — editable in Settings)
+## Default daily targets
 
-- Calories: 1700–1800 kcal
-- Protein: 165–175g
-- Carbs: 110–120g (hard cap)
-- Fat: 50–70g
-- Fiber: 25g+
-- Water: 3L
-- Coffee: 1–2/day
-- Creatine: 5g daily
+Editable in Settings.
 
-## How it works
-
-The app sends your meal text + a snapshot of session data (today's totals, recent history, weights, goal phase, coach memory) to Claude. The system prompt instructs Claude to end every relevant response with one of these inline JSON sentinels:
-
-- `MACRO_UPDATE:{...}` — meal logged
-- `LIQUID_UPDATE:{...}` — water/coffee/creatine
-- `WEIGHT_UPDATE:{...}` — weight entry
-- `COACH_INSIGHT:{...}` — end-of-day pattern memory
-
-The frontend parses these out, updates local state, persists to localStorage, and strips them from what's shown to you.
-
-## Features
-
-**Tracking**
-- Animated macro bars with overshoot indicators and hard-cap pulse for carbs
-- Hydration drops, supplement dots, coffee counter
-- Meals grouped by breakfast / lunch / pre-workout / post-workout / dinner / snack / late
-- Per-meal modal with original AI rating (tap any meal in sidebar)
-
-**History & analytics**
-- Charts for calories, P/C/F, fiber+water, weight (7 / 14 / 30 day toggle)
-- Protein and creatine streaks + 7-day adherence stats
-- Weekly summary modal with averages
-- History search by date or meal name
-- JSON export/import for backup
-
-**AI coach**
-- Cross-day rolling memory ("what I've learned about Josue")
-- Proactive time-based nudges (low protein at 1pm, low fiber at 6pm, etc. — once per day each)
-- Local food database for staples (egg whites, Greek yogurt, oats, chicken, etc.)
-- Pre/post-workout meal tagging
-- Editable phase: cut / maintain / bulk
-- Voice input via SpeechRecognition
-- Photo meal logging: snap a picture of a plate and Claude estimates the macros
+| Target | Default |
+|---|---|
+| Calories | 1700 to 1800 kcal |
+| Protein | 165 to 175 g |
+| Carbs | 110 to 120 g (hard cap) |
+| Fat | 50 to 70 g |
+| Fiber | 25 g or more |
+| Water | 3 L |
 
 ## File structure
 
 ```
 nutrition-os/
-├── README.md
+├── api/
+│   ├── chat.js     serverless proxy to the Anthropic API
+│   └── store.js    serverless Supabase sync
+├── src/
+│   ├── App.jsx     the app
+│   └── main.jsx
 ├── index.html
 ├── package.json
-├── vite.config.js
 ├── vercel.json
-├── .env.example
-├── .gitignore
-├── package-lock.json
-├── api/
-│   ├── chat.js      # serverless proxy to the Anthropic API
-│   └── store.js     # serverless Supabase sync
-└── src/
-    ├── main.jsx
-    └── App.jsx
+└── .env.example
 ```
-
-## localStorage keys
-
-- `day-YYYY-MM-DD` — full day record (meals, totals, water, etc.)
-- `chat-YYYY-MM-DD` — conversation history for that day
-- `nutrition-history` — rollup of all days
-- `nutrition-weights` — daily weight log
-- `nutrition-targets` — your editable targets
-- `nutrition-goal` — phase + goal description
-- `nutrition-coach-memory` — AI's rolling memory
-- `nudge-YYYY-MM-DD` — which proactive nudges have already fired today
-
-To wipe everything: `localStorage.clear()` in DevTools console.
